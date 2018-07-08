@@ -3,6 +3,10 @@ import os.path as path
 # Imports the Google Cloud client library
 from google.cloud import translate, language
 from google.cloud.language import enums, types
+import googlemaps
+
+from hidden.hidden import GoogleAPI
+API_KEY = GoogleAPI().api_key
 
 
 def translate_text_api(text='', target='ja', debug=False):
@@ -36,7 +40,13 @@ def translate_text_api(text='', target='ja', debug=False):
 def translate_text(text='', target='ja', debug=False):
     from utils.baseutils import load_db, update_db, get_filepath
     db_dir = "/db"
-    db_filename = "translation-cache.json"
+
+    if target == 'ja':
+        db_filename = "translation-to-ja-cache.json"
+    elif target == 'en':
+        db_filename = "translation-to-en-cache.json"
+    else:
+        raise SystemError('no translation cache defined. define one before proceeding.')
 
     db_filepath = get_filepath(path.join(db_dir, db_filename))
 
@@ -144,6 +154,64 @@ def analyze_entities_api(text='', verbose=False):
     return list_of_entities
 
 
+# sentiment of entire content
+def analyze_sentiment(text='', explicit_credentials=True):
+    """
+    Detects the sentiment of the text
+    https://cloud.google.com/natural-language/docs/analyzing-sentiment
+
+    Detects sentiment in the document. You can also analyze HTML with:
+    document.type == enums.Document.Type.HTML
+
+    outpus score and magnitude
+    The score of a document's sentiment indicates the overall emotion of a document.
+    The magnitude of a document's sentiment indicates how much emotional content is present within the document,
+    and this value is often proportional to the length of the document.
+
+    TLDR:
+    deifne your own threshold of what's strong emotion, then measure from there
+    score = (- bad, + good, 0.0 either low emotion or mixed emotions)
+    magnitude = (emotion / length of content) (how strong is the emotion in the content?)
+    to find low emotions:
+    if score = low, magnitude = low, emotion = low
+    if score = low, magnitude = hight, emotion = mixed
+    when comparing content of different length, use magnitude to normalize scores
+    :param text:
+    :param explicit_credentials:
+    :return:
+    """
+
+    client = language.LanguageServiceClient()
+
+    if isinstance(text, six.binary_type):
+        text = text.decode('utf-8')
+
+    document = types.Document(
+        content=text,
+        language='ja',
+        type=enums.Document.Type.PLAIN_TEXT)
+
+    sentiment = client.analyze_sentiment(document=document).document_sentiment
+
+    """
+    It is important to note that the Natural Language API indicates differences between 
+    positive and negative emotion in a document, but does not identify specific positive and negative emotions. 
+    For example, "angry" and "sad" are both considered negative emotions. However, when the Natural Language API 
+    analyzes text that is considered "angry", or text that is considered "sad", the response only indicates that 
+    the sentiment in the text is negative, not "sad" or "angry".
+
+    A document with a neutral score (around 0.0) may indicate a low-emotion document, or may indicate mixed emotions, 
+    with both high positive and negative values which cancel each out. Generally, you can use magnitude values to 
+    disambiguate these cases, as truly neutral documents will have a low magnitude value, while mixed documents 
+    will have higher magnitude values.
+
+    When comparing documents to each other (especially documents of different length), make sure to use the 
+    magnitude values to calibrate your scores, as they can help you gauge the relevant amount of emotional content.
+    """
+
+    return sentiment
+
+
 def parse_entities(text='', debug=False):
     """
     entity level parsing
@@ -151,7 +219,8 @@ def parse_entities(text='', debug=False):
     :param debug:
     :return:
     """
-    from utils.baseutils import load_db, update_db, get_filepath
+    from utils.baseutils import get_filepath
+    from utils.db_utils import load_db, update_db
     db_dir = "/db"
     db_filename = "entity-cache.json"
 
@@ -174,36 +243,76 @@ def parse_entities(text='', debug=False):
         return output
 
 
-def identify_entities(text):
-    """
-    sentence level parsing
-    :param text:
-    :return:
-    """
-    # 1. check if any of the entities in the cache is in the text
+def get_places(query="Osaka"):
+    # 2 fallbacks
+    # if places returns nothing, try parsing entities
+    gmaps = googlemaps.Client(key=API_KEY)
 
-    # 2. if not inside, run something to get entities
-    # todo: i thought google nlp would
+    response = gmaps.find_place(query, input_type='textquery')
+    candidates = response['candidates']
 
-    output_dict = []
+    candidate_output = []
+    for c in candidates:
+        place = gmaps.place(place_id=c['place_id'])
+        candidate_output.append(place)
+    return candidate_output
 
-    for i in range(10):
-        dict_item = {
-            "label": "",
-            "position": 3,
-            "is_entity": True
-        }
 
-        output_dict.append(dict_item)
+def get_coordinates_from_places(query='Osaka'):
+    places_list = get_places(query=query)
 
-    raise
-    return output_dict
+    candidate_coords = []
+    for x in places_list:
+        try:
+            coords = x['result']['geometry']['location']
+            candidate_coords.append(coords)
+        except:
+            return {}
 
+    if len(candidate_coords) == 1:
+        return candidate_coords[0]
+    elif len(candidate_coords) < 1:
+        return {}
+    else:
+        print('found multiple places for {}'.format(query))
+        [print(x) for x in candidate_coords]
+        raise SystemError('to be implemented: average? over coords')
+
+
+def get_geocode(query='Osaka', with_bounds=False):
+    gmaps = googlemaps.Client(key=API_KEY)
+
+    response = gmaps.geocode(query)
+    if len(response) > 1:
+        [print(x) for x in response]
+        raise
+    location = response[0]['geometry']
+
+
+    output = {}
+    if with_bounds:
+        try:
+            output['bounds'] = location['bounds']
+        except:
+            print('no bounds found. coord might be a shop.')
+    output['location'] = location['location']
+
+    return output
+
+
+def get_coordinates_from_geocode(query='Osaka'):
+    response = get_geocode(query=query)
+    return response['location']
 
 
 if __name__ == '__main__':
-    translate_text("fathers day", debug=True)
-    translate_text("japan", debug=True)
-    detect_language_api('弟')
-    parse_entities("wakeupamerica")
-    parse_entities("america makes us strong like teeth")
+    # translate_text("fathers day", debug=True)
+    # translate_text("japan", debug=True)
+    # detect_language_api('弟')
+    # parse_entities("wakeupamerica")
+    # parse_entities("america makes us strong like teeth")
+
+    print(json.dumps(get_coordinates_from_geocode('東京 holiday'), indent=4, ensure_ascii=False))
+    print(json.dumps(get_coordinates_from_geocode('兵庫県尼崎市'), indent=4, ensure_ascii=False))
+
+

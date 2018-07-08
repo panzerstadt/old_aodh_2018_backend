@@ -5,6 +5,7 @@ from many_stop_words import get_stop_words
 import re
 
 from utils.regex import regexEnJa
+from api.google_api import detect_language_code
 
 # en
 from ekphrasis.classes.segmenter import Segmenter
@@ -43,7 +44,7 @@ def english_tokenize(text, subtokenize=True):
     return output
 
 
-def tokenize_and_normalize_sentences(sentence, language='en', clean_http=True, debug=False):
+def tokenize_and_normalize_sentences(sentence, language=None, clean_http=True, debug=False):
     stemmer = LancasterStemmer()
 
     regex_set = regexEnJa().regex_en_ja_characters_set(whitespace=True, tabs_newlines=False, url=True)
@@ -66,14 +67,19 @@ def tokenize_and_normalize_sentences(sentence, language='en', clean_http=True, d
         print('to:   ', '<start>' + s + '<end>')
         print('')
 
+    if language:
+        lang_code = language
+    else:
+        lang_code = detect_language_code(sentence)
+
     # set ignored words (overly common words)
     # tokenize words
-    if language == 'en':
+    if lang_code == 'en':
         ignore_words = set(stopwords.words('english'))  # english
         # nltk's word_tokenize for english
         words = english_tokenize(s)
-    elif language == 'ja':
-        ignore_words = get_stop_words(language)  # has japanese
+    elif lang_code == 'ja':
+        ignore_words = get_stop_words(lang_code)  # has japanese
         words = mecab_tokenize(s)
         # clean blanks (japanese only)
         words = [w for w in words if w is not ' ']
@@ -101,25 +107,25 @@ if __name__ == '__main__':
         http://pnw-b.ctx.ly/r/607gu 
         """
 
-        t = tokenize_and_normalize_sentences(test_tweet_ja, language='ja')
+        t = tokenize_and_normalize_sentences(test_tweet_ja, language='ja', debug=True)
         print(t)
         [print(x) for x in t]
 
         test_tweet_en = "📸 We are working hard on editing videos and we'll start publishing this week. Meanwhile, enjoy amazing pictures from the conference made by our great volunteers."
         test_tweet_en2 = "The #big COW’s JuMp!!!"
 
-        t = tokenize_and_normalize_sentences(test_tweet_en, language='en')
+        t = tokenize_and_normalize_sentences(test_tweet_en, language='en', debug=True)
         print(t)
         [print(x) for x in t]
 
         test_tweet_en3 = "asachildithought"
 
-        t = tokenize_and_normalize_sentences(test_tweet_en3, language='en')
+        t = tokenize_and_normalize_sentences(test_tweet_en3, language='en', debug=True)
         print(t)
         [print(x) for x in t]
 
 
-    #test()
+    test()
 
 
     def test2():
@@ -136,4 +142,4 @@ if __name__ == '__main__':
 
         print(english_tokenize(test_tweet_en))
 
-    test3()
+    #test3()

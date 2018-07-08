@@ -5,8 +5,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# ml stuff
-
+# component
+from make_tweet_list import get_tweet_list
 
 # pretty interface
 from flasgger import Swagger
@@ -17,7 +17,7 @@ allowed_domains = [
 ]
 
 application = Flask(__name__)
-swagger = Swagger(application)
+Swagger(application)
 
 CORS(application,
      origins=allowed_domains,
@@ -51,10 +51,10 @@ def hello():
 
 
 # GET request
-@application.route('/v1/predict/', methods=['GET'])
+@application.route('/v1/list/', methods=['GET'])
 def nn_prediction():
     """
-    predicts iris type from GET
+    get list of latest tweets, locations, sentiment, and time
     ---
     parameters:
       - name: s_length
@@ -86,59 +86,14 @@ def nn_prediction():
               type: number
               default: 200
     """
-    x_1 = request.args.get("s_length")
-    x_2 = request.args.get("s_width")
-    x_3 = request.args.get("p_length")
-    x_4 = request.args.get("p_width")
-
-    x_input = [x_1, x_2, x_3, x_4]
-    print('4 inputs received: ', x_input)
-
-    #results = predict_iris(x_input=x_input)
-    results = x_input
+    response = get_tweet_list()
 
     output = {
-        "results": results,
+        "results": response,
         "status": 200
     }
     return jsonify(output)
 
-
-# POST request (file input)
-@application.route('/v1/predict/', methods=['POST'])
-def nn_prediction_file():
-    """
-    use case: normal user who just has a csv, and doesn't know data science. input csv, get result (datawrapper). supports multiple inputs. each input in the file must be a row of 4 numbers separated by corners in this order: sepal_length, sepal_width, petal_length, and petal_width
-    ---
-    parameters:
-      - name: input_file
-        in: formData
-        type: file
-        required: true
-    responses:
-      200:
-        description: Json describing classes for each row in csv
-        schema:
-          id: predictionFile
-          properties:
-            results:
-              type: json
-              default: ['setosa', 'setosa', 'virginica']
-            status:
-              type: number
-              default: 200
-    """
-    x_1 = request.files.get("input_file")
-
-    #results = predict_iris_file(x_file_input=x_1)
-    results = x_1
-    print('returning: ', results)
-
-    output = {
-        "results": results,
-        "status": 200
-    }
-    return jsonify(output)
 
 
 application.run(debug=True)

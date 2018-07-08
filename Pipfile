@@ -16,6 +16,7 @@ many-stop-words = "*"
 google-cloud = "*"
 ekphrasis = "*"
 ujson = "*"
+googlemaps = "*"
 
 [dev-packages]
 

@@ -48,34 +48,33 @@ def get_filepath(filepath_with_extension, debug=False):
                         raise SystemError("file not found by traversing backwards 3 folders")
 
 
-def load_db(database_path=db_file, debug=False):
-    database_path = get_filepath(database_path)
-    with open(database_path) as json_db:
-        return json.loads(json_db.read())
-
-
-def update_db(dict_in, database_path=db_file, debug=False):
-    with open(database_path, 'r') as json_db:
-        state_str = json_db.read()
-        state = json.loads(state_str)
-        if debug:
-            print('current state')
-            print(json.dumps(state, indent=4, ensure_ascii=False))
-            print('replacing state (this is not redux yet)')
-
-        for k, v in dict_in.items():
-            state[k] = dict_in[k]
-
-    with open(database_path, 'w') as json_db:
-        if debug:
-            print('saving state')
-        json.dump(state, json_db, ensure_ascii=False)
-
-
-def make_db(dict_in, database_path, debug=False):
-    with open(database_path, 'w') as json_db:
-        json.dump(dict_in, json_db, ensure_ascii=False)
-
+def get_directory(directory, debug=False):
+    d = lambda x: os.path.isdir(x)
+    if debug: print(directory)
+    if d(directory):
+        return directory
+    else:
+        dir0 = '.' + directory
+        if d(dir0):
+            print('returning: ', dir0)
+            return dir0
+        else:
+            dir1 = '..' + directory
+            if d(dir1):
+                print('returning: ', dir1)
+                return dir1
+            else:
+                dir2 = '../..' + directory
+                if d(dir2):
+                    print('returning: ', dir2)
+                    return dir2
+                else:
+                    dir3 = '../../..' + directory
+                    if d(dir3):
+                        print('returning: ', dir3)
+                        return dir3
+                    else:
+                        raise SystemError("directory not found by traversing 3 folders backwards")
 
 
 def print_list_of_dicts(input_list):
@@ -88,4 +87,5 @@ def unhashtagify(text):
         text = text[1:]
         return text
     return text
+
 
